@@ -1,3 +1,8 @@
+# citu-speech-evaluation
+This contains a speech evaluation web application made using Vite+React and Python, Using Deepgram API and OpenAI API for transcription and evaluation.
+
+---
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
