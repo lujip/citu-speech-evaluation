@@ -23,7 +23,7 @@ This project is a full-stack speech evaluation web app using React (Vite) for th
 
 ## 1. Clone the Repository
 ```sh
-git clone <your-repo-url>
+git clone https://github.com/lujip/citu-speech-evaluation.git
 cd SpeechEvalMain
 ```
 
