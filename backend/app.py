@@ -1,3 +1,8 @@
+# app.py - Flask backend for Speech Evaluation Web App
+#
+# This file handles the API endpoints, question management, audio file handling,
+# and orchestration of the evaluation process. See comments throughout for a walkthrough.
+
 from flask import Flask, jsonify, request
 import threading
 from flask_cors import CORS
@@ -7,10 +12,11 @@ import pyttsx3
 import os
 import subprocess
 
+# 1. Initialize Flask app and enable CORS for frontend-backend communication
 app = Flask(__name__)
 CORS(app)
 
-# --- Question bank ---
+# 2. Define the set of questions and keywords for evaluation
 questions = [
     {
         "text": "Describe a situation when you had to explain something difficult to someone.",
@@ -34,9 +40,11 @@ questions = [
     }
 ]
 
+# 3. Track the current question and index
 current_question = {"text": questions[0]["text"]}
 current_index = 0
 
+# 4. Text-to-speech function to read questions aloud (runs in a thread)
 def speak(text):
     engine = pyttsx3.init()
     voices = engine.getProperty('voices')
@@ -47,10 +55,12 @@ def speak(text):
     engine.say(text)
     engine.runAndWait()
 
+# 5. API endpoint: Get the current question
 @app.route("/question", methods=["GET"])
 def get_current_question():
     return jsonify(current_question)
 
+# 6. API endpoint: Move to the next question (loops to start if at end)
 @app.route("/next_question", methods=["POST"])
 def next_question():
     global current_index, current_question
@@ -66,6 +76,11 @@ def next_question():
         threading.Thread(target=speak, args=(current_question["text"],)).start()
         return jsonify({"success": True, "question": current_question})
 
+# 7. API endpoint: Evaluate an audio answer
+#    - Receives question, keywords, and audio file from frontend
+#    - Converts audio to WAV (if needed)
+#    - Calls run_full_evaluation (see test_eval.py)
+#    - Returns transcript, metrics, evaluation, and feedback
 @app.route("/evaluate", methods=["POST"])
 def evaluate():
     question = request.form.get("question")
@@ -83,6 +98,7 @@ def evaluate():
         ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except Exception as e:
         return jsonify({"success": False, "message": f"Audio conversion failed: {str(e)}"}), 500
+    # Call the evaluation pipeline
     result = run_full_evaluation(question, keywords, audio_wav_path)
     import gc
     gc.collect()
@@ -122,7 +138,7 @@ def evaluate():
         "comment": comment
     })
 
+# 8. Start the Flask app (and optionally speak the first question)
 if __name__ == "__main__":
-    # Optionally speak the first question at startup
     threading.Thread(target=speak, args=(current_question["text"],)).start()
     app.run(port=5000)

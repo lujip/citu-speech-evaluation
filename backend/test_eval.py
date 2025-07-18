@@ -1,3 +1,8 @@
+# test_eval.py - Evaluation and analysis logic for Speech Evaluation Web App
+#
+# This file contains all the core logic for transcribing, analyzing, and evaluating
+# speech answers. Each section is commented for a step-by-step walkthrough.
+
 import pyttsx3
 import sounddevice as sd
 import soundfile as sf
@@ -11,13 +16,16 @@ from openai import OpenAI
 import gc
 from dotenv import load_dotenv
 
+# 1. Load environment variables (API keys, etc.)
 load_dotenv()
 
-# --- OpenAI setup ---
+# 2. Set up OpenAI client for evaluation
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# --- GPT-based answer evaluation (simple) ---
+# 3. (Optional) Simple GPT-based answer evaluation
+#    - Returns a score and comment for a given question/answer
+#    - Used for basic feedback
 def judge_answer(question, answer):
     prompt = (
         f"Question: {question}\n"
@@ -36,7 +44,9 @@ def judge_answer(question, answer):
     )
     return response.choices[0].message.content.strip()
 
-# --- GPT-based answer evaluation (detailed) ---
+# 4. (Recommended) Detailed GPT-based answer evaluation
+#    - Returns a JSON with category scores and feedback
+#    - Used for more granular, rubric-based feedback
 def judge_answer_2(question, answer, scores=None):
     if not answer.strip():
         return """{
@@ -83,7 +93,8 @@ def judge_answer_2(question, answer, scores=None):
     )
     return response.choices[0].message.content.strip()
 
-# --- Audio recording (legacy, not used) ---
+# 5. (Legacy) Record audio from microphone and save to file
+#    - Not used in main app, but useful for testing
 def record_audio(file_name, duration=10):
     fs = 44100
     print(f"🎙️ Recording for {duration} seconds...")
@@ -92,13 +103,15 @@ def record_audio(file_name, duration=10):
     sf.write(file_name, audio, fs)
     print("✅ Recording saved.\n")
 
-# --- Whisper transcription (legacy, not used) ---
+# 6. (Legacy) Transcribe audio using Whisper (local model)
+#    - Not used in main app, but can be used for offline testing, does not detect filler words
 model = whisper.load_model("medium")
 def transcribe_audio(file_path):
     result = model.transcribe(file_path, word_timestamps=True, language="en")
     return result["text"]
 
-# --- Deepgram transcription ---
+# 7. Transcribe audio using Deepgram API (main method)
+#    - Converts audio to text, detects fillers, etc.
 import asyncio
 from deepgram import Deepgram
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
@@ -137,12 +150,14 @@ def transcribe_audio_deepgram(audio_path):
         }
     return asyncio.run(transcribe_async())
 
-# --- Grammar check ---
+# 8. Grammar check using LanguageTool
+#    - Returns a list of grammar issues
 tool = language_tool_python.LanguageTool('en-US')
 def check_grammar(text):
     return tool.check(text)
 
-# --- Audio analysis ---
+# 9. Analyze audio for pitch, duration, and estimated words per minute
+#    - Used for additional feedback
 def analyze_audio(file_path):
     snd = parselmouth.Sound(file_path)
     pitch = snd.to_pitch()
@@ -158,14 +173,18 @@ def analyze_audio(file_path):
         "estimated_wpm": round(words_per_min, 2)
     }
 
-# --- Evaluation wrapper ---
+# 10. Wrap up all results for the frontend
+#     - Returns transcript, audio metrics, and (optionally) evaluation
+#     - This is the main callable from app.py
+#     - Calls Deepgram, analyzes audio, and gets GPT feedback from OpenAI
+#     - Returns all results
+
 def evaluate_answer(transcript, audio_metrics, expected_keywords):
     return {
         "transcript": transcript,
         "audio_metrics": audio_metrics,
     }
 
-# --- Main evaluation entry point ---
 def run_full_evaluation(question, keywords, audio_file, use_deepgram=True):
     transcript_data = transcribe_audio_deepgram(audio_file)
     transcript = transcript_data["transcript"]
