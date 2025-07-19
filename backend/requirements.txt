@@ -5,11 +5,11 @@ sounddevice
 soundfile
 whisper
 language_tool_python
-#parselmouth
+praat-parselmouth
 numpy
 openai
 faster-whisper
-#deepgram
+deepgram-sdk
 python-dotenv
 # System dependencies required:
 # - ffmpeg (for audio conversion)
