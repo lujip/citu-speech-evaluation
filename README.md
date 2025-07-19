@@ -125,5 +125,3 @@ SpeechEvalMain/
 
 ---
 
-## 8. License
-MIT (or your chosen license)
