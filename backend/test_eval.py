@@ -6,11 +6,7 @@
 import pyttsx3
 import sounddevice as sd
 import soundfile as sf
-<<<<<<< Updated upstream
-#import whisper
-=======
 # import whisper
->>>>>>> Stashed changes
 import language_tool_python
 import parselmouth
 import numpy as np
@@ -189,12 +185,6 @@ def record_audio(file_name, duration=10):
 
 # 6. (Legacy) Transcribe audio using Whisper (local model)
 #    - Not used in main app, but can be used for offline testing, does not detect filler words
-<<<<<<< Updated upstream
-#model = whisper.load_model("medium")
-#def transcribe_audio(file_path):
-#    result = model.transcribe(file_path, word_timestamps=True, language="en")
-#    return result["text"]
-=======
 
 # Use smaller model and configure for GPU efficiency
 # model = whisper.load_model("small") 
@@ -202,7 +192,6 @@ def record_audio(file_name, duration=10):
 #     with torch.cuda.amp.autocast():  # Use automatic mixed precision
 #         result = model.transcribe(file_path, word_timestamps=True, language="en")
 #     return result["text"]
->>>>>>> Stashed changes
 
 # 7. Transcribe audio using Deepgram API (main method)
 #    - Converts audio to text, detects fillers, etc.
