@@ -15,7 +15,7 @@ This project is a full-stack speech evaluation web app using React (Vite) for th
 
 ## Prerequisites
 - **Node.js** (v16+ recommended)
-- **Python** (3.8+ recommended)
+- **Python** (3.10+ required for Deepgram SDK v3)
 - **pip** (Python package manager)
 - **ffmpeg** (for audio conversion)
 
@@ -31,7 +31,17 @@ cd SpeechEvalMain
 
 ## 2. Backend Setup (Python)
 
-### a. Create and activate a virtual environment (recommended)
+### a. Set up Python environment
+You can use either conda (recommended) or venv:
+
+#### Using conda:
+```sh
+cd backend
+conda create -n speech-eval python=3.10
+conda activate speech-eval
+```
+
+#### Using venv (alternative):
 ```sh
 cd backend
 python -m venv venv
@@ -42,6 +52,7 @@ source venv/bin/activate
 ```
 
 ### b. Install Python requirements
+Note: This project uses Deepgram SDK v3, which requires Python 3.10 or higher.
 ```sh
 pip install -r requirements.txt
 ```

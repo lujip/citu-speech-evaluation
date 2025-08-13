@@ -6,22 +6,48 @@
 import pyttsx3
 import sounddevice as sd
 import soundfile as sf
+<<<<<<< Updated upstream
 #import whisper
+=======
+# import whisper
+>>>>>>> Stashed changes
 import language_tool_python
 import parselmouth
 import numpy as np
 import os
-import openai
 from openai import OpenAI
 import gc
 from dotenv import load_dotenv
+from deepgram import DeepgramClient
+from google import genai
 
 # 1. Load environment variables (API keys, etc.)
 load_dotenv()
 
 # 2. Set up OpenAI client for evaluation
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = OpenAI(api_key=OPENAI_API_KEY)
+client_gemini = genai.Client(api_key=GEMINI_API_KEY)
+
+
+# this is the detailed prompt used for GPT-based evaluation
+detailed_gpt_prompt = '''
+You are an English language speaking examiner following international speaking rubrics (e.g., IELTS, TOEFL, CEFR).
+
+Question: {question}
+Student's Answer: {answer}
+
+Evaluate the response using the following 5 categories:
+
+    Task Relevance – Does the response appropriately and fully address the prompt? [IELTS, TOEFL]
+    Grammar and Lexis – Is the grammar accurate and vocabulary appropriate? Evaluate range and correctness. [CEFR, IELTS]
+    Discourse Management – Is the response well-structured, connected, and cohesive? Are ideas extended and logically organized? [CEFR, TOEFL]
+    Pronunciation and Fluency – Is the speech fluent, with minimal unnatural pauses or hesitation? Deduct for filler words like 'uh', 'um', 'kanang', 'like'. [IELTS, CEFR]
+    Coherence and Appropriateness – Does the tone fit an academic or formal setting? Is the response socially and culturally appropriate? [CEFR]
+
+P.S. Scoring are based on a 1-10 scale, with 10 being perfect. And provide comment also.
+'''
 
 # 3. (Optional) Simple GPT-based answer evaluation
 #    - Returns a score and comment for a given question/answer
@@ -93,6 +119,64 @@ def judge_answer_2(question, answer, scores=None):
     )
     return response.choices[0].message.content.strip()
 
+
+# These are the Pydantic models used for structured responses
+# They define the expected structure of the evaluation results
+from pydantic import BaseModel
+class CategoryScores(BaseModel):
+    task_relevance: int
+    grammar_lexis: int
+    discourse_management: int
+    pronunciation_fluency: int
+    coherence_appropriateness: int
+
+class Verdict(BaseModel):
+    score: int
+    category_scores: CategoryScores
+    comment: str
+
+def judge_answer_gemini(question, answer, scores=None) -> dict:
+    try:
+        prompt = detailed_gpt_prompt.format(
+            question=question,
+            answer=answer
+        )
+
+        response = client_gemini.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config={
+                "response_mime_type": "application/json",
+                "response_schema": Verdict,
+            }
+        )
+
+        # Use the parsed response directly
+        if response and hasattr(response, 'parsed'):
+            result: Verdict = response.parsed
+            return result.dict()
+        else:
+            print("No parsed response from Gemini")
+            return create_error_verdict("No valid response from Gemini")
+
+    except Exception as e:
+        print(f"Error in Gemini evaluation: {e}")
+        return create_error_verdict(f"Gemini evaluation failed: {str(e)}")
+
+def create_error_verdict(error_message: str) -> dict:
+    """Create a default error verdict"""
+    return {
+        "score": 0,
+        "category_scores": {
+            "task_relevance": 0,
+            "grammar_lexis": 0,
+            "discourse_management": 0,
+            "pronunciation_fluency": 0,
+            "coherence_appropriateness": 0
+        },
+        "comment": f"Error: {error_message}"
+    }
+
 # 5. (Legacy) Record audio from microphone and save to file
 #    - Not used in main app, but useful for testing
 def record_audio(file_name, duration=10):
@@ -105,50 +189,77 @@ def record_audio(file_name, duration=10):
 
 # 6. (Legacy) Transcribe audio using Whisper (local model)
 #    - Not used in main app, but can be used for offline testing, does not detect filler words
+<<<<<<< Updated upstream
 #model = whisper.load_model("medium")
 #def transcribe_audio(file_path):
 #    result = model.transcribe(file_path, word_timestamps=True, language="en")
 #    return result["text"]
+=======
+
+# Use smaller model and configure for GPU efficiency
+# model = whisper.load_model("small") 
+# def transcribe_audio(file_path):
+#     with torch.cuda.amp.autocast():  # Use automatic mixed precision
+#         result = model.transcribe(file_path, word_timestamps=True, language="en")
+#     return result["text"]
+>>>>>>> Stashed changes
 
 # 7. Transcribe audio using Deepgram API (main method)
 #    - Converts audio to text, detects fillers, etc.
-import asyncio
-from deepgram import Deepgram
+from deepgram import DeepgramClient, PrerecordedOptions
+
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
 
+if not DEEPGRAM_API_KEY:
+    raise ValueError("DEEPGRAM_API_KEY environment variable is not set. Please set it in your .env file.")
+
 def transcribe_audio_deepgram(audio_path):
-    async def transcribe_async():
-        dg_client = Deepgram(DEEPGRAM_API_KEY)
+    try:
+        dg_client = DeepgramClient(DEEPGRAM_API_KEY)
+        
         mimetype = "audio/wav"
         if audio_path.endswith(".mp3"):
             mimetype = "audio/mpeg"
         elif audio_path.endswith(".flac"):
             mimetype = "audio/flac"
+                
         with open(audio_path, 'rb') as audio_file:
-            source = {
-                'buffer': audio_file,
-                'mimetype': mimetype
-            }
-            response = await dg_client.transcription.prerecorded(
-                source,
-                {
-                    'punctuate': False,
-                    'language': 'en',
-                    'utterances': True,
-                    'filler_words': True,
-                    'diarize': False,
-                    'model': 'nova'
-                }
-            )
-        full_transcript = response['results']['channels'][0]['alternatives'][0]['transcript']
-        words = response['results']['channels'][0]['alternatives'][0].get('words', [])
-        fillers = [w for w in words if w.get("type") == "filler"]
-        return {
-            "transcript": full_transcript,
-            "fillers": fillers,
-            "words": words
+            audio_data = audio_file.read()
+        
+        print("Setting up transcription options...")
+        options = PrerecordedOptions(
+            smart_format=True,
+            model="nova-2",
+            language="en-US",
+            detect_topics=True,
+            utterances=True
+        )
+        
+        payload = {
+            "buffer": audio_data,
         }
-    return asyncio.run(transcribe_async())
+        
+        response = dg_client.listen.rest.v("1").transcribe_file(payload, options)
+        
+        if not response or not response.results:
+            return None
+        
+        result = response.results
+        channel = result.channels[0]
+        alternative = channel.alternatives[0]
+        
+        transcription_result = {
+            "transcript": alternative.transcript,
+            "fillers": [w for w in alternative.words if hasattr(w, 'type') and w.type == 'filler'],
+            "words": alternative.words
+        }
+        
+        print(f"Transcription successful: {transcription_result['transcript'][:50]}...")
+        return transcription_result
+        
+    except Exception as e:
+        print(f"Deepgram transcription error: {str(e)}")
+        return None
 
 # 8. Grammar check using LanguageTool
 #    - Returns a list of grammar issues
@@ -180,27 +291,52 @@ def analyze_audio(file_path):
 #     - Returns all results
 
 def evaluate_answer(transcript, audio_metrics, expected_keywords):
+    """Basic evaluation function that returns transcript and audio metrics."""
     return {
         "transcript": transcript,
         "audio_metrics": audio_metrics,
     }
 
 def run_full_evaluation(question, keywords, audio_file, use_deepgram=True):
-    transcript_data = transcribe_audio_deepgram(audio_file)
-    transcript = transcript_data["transcript"]
-    audio_metrics = analyze_audio(audio_file)
+    """Main evaluation function that processes audio and returns complete results."""
     try:
-        gpt_judgment = judge_answer_2(question, transcript, audio_metrics)
-        import json as _json
-        gpt_result = _json.loads(gpt_judgment) if gpt_judgment.strip().startswith('{') else {}
+        # Get transcription
+        transcript_data = transcribe_audio_deepgram(audio_file)
+        if not transcript_data:
+            print("Transcription failed - no data returned")
+            return None
+        
+        transcript = transcript_data.get("transcript")
+        if not transcript:
+            print("Transcription failed - no transcript in response")
+            return None
+        
+        # Get audio metrics
+        audio_metrics = analyze_audio(audio_file)
+        if not audio_metrics:
+            print("Audio analysis failed")
+            return None
+            
+        # Get evaluation (using Gemini)
+        evaluation_result = judge_answer_gemini(question, transcript, audio_metrics)
+        
+        # No need to parse the result as judge_answer_gemini already returns a dict
+        
+        # Cleanup
+        gc.collect()
+            
+        # Structure the response to match frontend expectations
+        return {
+            "transcript": transcript,
+            "transcript_data": transcript_data,
+            "audio_metrics": audio_metrics,
+            "evaluation": {
+                "score": evaluation_result["score"],
+                "category_scores": evaluation_result["category_scores"],
+            },
+            "comment": evaluation_result["comment"]  # Move comment to top level for frontend
+        }
+            
     except Exception as e:
-        gpt_judgment = f"GPT evaluation failed: {str(e)}"
-        gpt_result = {}
-    gc.collect()
-    return {
-        "transcript": transcript,
-        "transcript_data": transcript_data,
-        "audio_metrics": audio_metrics,
-        "evaluation": gpt_result,
-        "gpt_judgment": gpt_judgment
-    }
+        print(f"Error in run_full_evaluation: {str(e)}")
+        return None

@@ -98,24 +98,22 @@ def evaluate():
         ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except Exception as e:
         return jsonify({"success": False, "message": f"Audio conversion failed: {str(e)}"}), 500
-    # Call the evaluation pipeline
-    result = run_full_evaluation(question, keywords, audio_wav_path)
-    import gc
-    gc.collect()
-    # Separate evaluation and comment
-    evaluation = result.get("evaluation", {})
-    gpt_judgment = result.get("gpt_judgment", "")
-    comment = None
-    # Try to extract comment from gpt_judgment if it's a JSON string
+            # Call the evaluation pipeline
     try:
-        import json as _json
-        gpt_eval = _json.loads(gpt_judgment) if isinstance(gpt_judgment, str) and gpt_judgment.strip().startswith('{') else None
-        if gpt_eval and 'comment' in gpt_eval:
-            comment = gpt_eval['comment']
-    except Exception:
-        pass
-    if not comment:
-        comment = gpt_judgment
+        result = run_full_evaluation(question, keywords, audio_wav_path)
+        if not result:
+            return jsonify({"success": False, "message": "Speech transcription failed. Please try again."}), 500
+        
+        import gc
+        gc.collect()
+        
+        # Get evaluation and comment from result
+        evaluation = result.get("evaluation", {})
+        comment = result.get("comment", "No feedback available.")  # Get comment directly from result
+        
+    except Exception as e:
+        print(f"Evaluation error: {str(e)}")
+        return jsonify({"success": False, "message": "An error occurred during evaluation. Please try again."}), 500
     # Remove uploaded and converted files after processing
     for path in [audio_webm_path, audio_wav_path]:
         try:
