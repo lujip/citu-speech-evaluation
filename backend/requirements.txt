@@ -9,7 +9,7 @@ praat-parselmouth
 numpy
 openai
 faster-whisper
-deepgram-sdk
+deepgram-sdk==2.12.0
 python-dotenv
 # System dependencies required:
 # - ffmpeg (for audio conversion)
