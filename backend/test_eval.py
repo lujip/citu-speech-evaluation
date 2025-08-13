@@ -6,7 +6,7 @@
 import pyttsx3
 import sounddevice as sd
 import soundfile as sf
-import whisper
+#import whisper
 import language_tool_python
 import parselmouth
 import numpy as np
@@ -105,10 +105,10 @@ def record_audio(file_name, duration=10):
 
 # 6. (Legacy) Transcribe audio using Whisper (local model)
 #    - Not used in main app, but can be used for offline testing, does not detect filler words
-model = whisper.load_model("medium")
-def transcribe_audio(file_path):
-    result = model.transcribe(file_path, word_timestamps=True, language="en")
-    return result["text"]
+#model = whisper.load_model("medium")
+#def transcribe_audio(file_path):
+#    result = model.transcribe(file_path, word_timestamps=True, language="en")
+#    return result["text"]
 
 # 7. Transcribe audio using Deepgram API (main method)
 #    - Converts audio to text, detects fillers, etc.
