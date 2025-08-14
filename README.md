@@ -1,6 +1,6 @@
 # Speech Evaluation Web Application
 
-This project is a full-stack speech evaluation web app using React (Vite) for the frontend and Python (Flask) for the backend. It leverages Deepgram API for speech-to-text and OpenAI API for evaluation.
+This project is a full-stack speech evaluation web app using React (Vite) for the frontend and Python (Flask) for the backend. It leverages Deepgram API for speech-to-text and OpenAI and Gemini API's for evaluation.
 
 ---
 
@@ -62,6 +62,7 @@ Create a file called `.env` in the `backend/` folder with the following content:
 ```
 OPENAI_API_KEY=your_openai_api_key_here
 DEEPGRAM_API_KEY=your_deepgram_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 **Never commit this file to git!**
 
