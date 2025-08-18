@@ -27,3 +27,4 @@ dist-ssr
 .env
 backend/.env
 backend/__pycache__/test_eval.cpython-313.pyc
+docs
