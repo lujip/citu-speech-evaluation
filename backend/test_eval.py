@@ -14,8 +14,9 @@ import os
 from openai import OpenAI
 import gc
 from dotenv import load_dotenv
-from deepgram import DeepgramClient
+from deepgram import DeepgramClient, PrerecordedOptions
 from google import genai
+from pydantic import BaseModel
 
 # 1. Load environment variables (API keys, etc.)
 load_dotenv()
@@ -49,6 +50,16 @@ P.S. Scoring are based on a 1-10 scale, with 10 being perfect. And provide comme
 #    - Returns a score and comment for a given question/answer
 #    - Used for basic feedback
 def judge_answer(question, answer):
+    """
+    Evaluate an answer using basic GPT criteria.
+    
+    :param question: The question that was asked
+    :type question: str
+    :param answer: The student's answer to evaluate
+    :type answer: str
+    :returns: JSON string containing score (1-10) and feedback comment
+    :rtype: str
+    """
     prompt = (
         f"Question: {question}\n"
         f"Answer: {answer}\n\n"
@@ -69,7 +80,19 @@ def judge_answer(question, answer):
 # 4. (Recommended) Detailed GPT-based answer evaluation
 #    - Returns a JSON with category scores and feedback
 #    - Used for more granular, rubric-based feedback
-def judge_answer_2(question, answer, scores=None):
+def judge_answer_detailed(question, answer, scores=None):
+    """
+    Evaluate an answer using detailed GPT criteria with category scores.
+    
+    :param question: The question that was asked
+    :type question: str
+    :param answer: The student's answer to evaluate
+    :type answer: str
+    :param scores: Optional system scores for reference
+    :type scores: dict or None
+    :returns: JSON string containing overall score, category scores, and feedback comment
+    :rtype: str
+    """
     if not answer.strip():
         return """{
     "score": 0,
@@ -85,29 +108,26 @@ def judge_answer_2(question, answer, scores=None):
     scores_text = ""
     if scores:
         scores_text = "\nSystem Scores (for reference):\n" + "\n".join(f"- {k.replace('_',' ').title()}: {v}" for k, v in scores.items()) + "\n"
-    prompt = (
-        f"You are an English language speaking examiner following international speaking rubrics (e.g., IELTS, TOEFL, CEFR).\n\n"
-        f"Question: {question}\n"
-        f"Student's Answer: {answer}\n\n"
-        "Evaluate the response using the following 5 categories:\n"
-        "1. **Task Relevance** – Does the response appropriately and fully address the prompt? [IELTS, TOEFL]\n"
-        "2. **Grammar and Lexis** – Is the grammar accurate and vocabulary appropriate? Evaluate range and correctness. [CEFR, IELTS]\n"
-        "3. **Discourse Management** – Is the response well-structured, connected, and cohesive? Are ideas extended and logically organized? [CEFR, TOEFL]\n"
-        "4. **Pronunciation and Fluency** – Is the speech fluent, with minimal unnatural pauses or hesitation? Deduct for filler words like 'uh', 'um', 'kanang', 'like'. [IELTS, CEFR]\n"
-        "5. **Coherence and Appropriateness** – Does the tone fit an academic or formal setting? Is the response socially and culturally appropriate? [CEFR]\n\n"
-        "Return a JSON object:\n"
-        "{\n"
-        "  \"score\": (1–10 overall),\n"
-        "  \"category_scores\": {\n"
-        "    \"task_relevance\": x,\n"
-        "    \"grammar_lexis\": x,\n"
-        "    \"discourse_management\": x,\n"
-        "    \"pronunciation_fluency\": x,\n"
-        "    \"coherence_appropriateness\": x\n"
-        "  },\n"
-        "  \"comment\": \"Give constructive feedback. If present, mention filler words, grammar errors, or disorganization.\"\n"
-        "}"
-    )
+    
+    # Use the detailed_gpt_prompt and append JSON format requirements
+    prompt = detailed_gpt_prompt.format(
+        question=question,
+        answer=answer
+    ) + """
+
+Return a JSON object:
+{
+  "score": (1–10 overall),
+  "category_scores": {
+    "task_relevance": x,
+    "grammar_lexis": x,
+    "discourse_management": x,
+    "pronunciation_fluency": x,
+    "coherence_appropriateness": x
+  },
+  "comment": "Give constructive feedback. If present, mention filler words, grammar errors, or disorganization."
+}"""
+    
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
@@ -118,7 +138,6 @@ def judge_answer_2(question, answer, scores=None):
 
 # These are the Pydantic models used for structured responses
 # They define the expected structure of the evaluation results
-from pydantic import BaseModel
 class CategoryScores(BaseModel):
     task_relevance: int
     grammar_lexis: int
@@ -132,6 +151,18 @@ class Verdict(BaseModel):
     comment: str
 
 def judge_answer_gemini(question, answer, scores=None) -> dict:
+    """
+    Evaluate an answer using Google Gemini AI with structured response format.
+    
+    :param question: The question that was asked
+    :type question: str
+    :param answer: The student's answer to evaluate
+    :type answer: str
+    :param scores: Optional system scores for reference
+    :type scores: dict or None
+    :returns: Dictionary containing score, category scores, and feedback comment
+    :rtype: dict
+    """
     try:
         prompt = detailed_gpt_prompt.format(
             question=question,
@@ -160,7 +191,14 @@ def judge_answer_gemini(question, answer, scores=None) -> dict:
         return create_error_verdict(f"Gemini evaluation failed: {str(e)}")
 
 def create_error_verdict(error_message: str) -> dict:
-    """Create a default error verdict"""
+    """
+    Create a default error verdict.
+    
+    :param error_message: The error message to include in the verdict
+    :type error_message: str
+    :returns: Dictionary containing default error verdict with zero scores
+    :rtype: dict
+    """
     return {
         "score": 0,
         "category_scores": {
@@ -176,6 +214,16 @@ def create_error_verdict(error_message: str) -> dict:
 # 5. (Legacy) Record audio from microphone and save to file
 #    - Not used in main app, but useful for testing
 def record_audio(file_name, duration=10):
+    """
+    Record audio from microphone and save to file.
+    
+    :param file_name: The filename to save the recorded audio
+    :type file_name: str
+    :param duration: Duration of recording in seconds
+    :type duration: int
+    :returns: None
+    :rtype: None
+    """
     fs = 44100
     print(f"🎙️ Recording for {duration} seconds...")
     audio = sd.rec(int(duration * fs), samplerate=fs, channels=1)
@@ -195,7 +243,6 @@ def record_audio(file_name, duration=10):
 
 # 7. Transcribe audio using Deepgram API (main method)
 #    - Converts audio to text, detects fillers, etc.
-from deepgram import DeepgramClient, PrerecordedOptions
 
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
 
@@ -203,6 +250,14 @@ if not DEEPGRAM_API_KEY:
     raise ValueError("DEEPGRAM_API_KEY environment variable is not set. Please set it in your .env file.")
 
 def transcribe_audio_deepgram(audio_path):
+    """
+    Transcribe audio using Deepgram API with filler word detection.
+    
+    :param audio_path: Path to the audio file to transcribe
+    :type audio_path: str
+    :returns: Dictionary containing transcript, fillers, and word data, or None if failed
+    :rtype: dict or None
+    """
     try:
         dg_client = DeepgramClient(DEEPGRAM_API_KEY)
         
@@ -254,11 +309,27 @@ def transcribe_audio_deepgram(audio_path):
 #    - Returns a list of grammar issues
 tool = language_tool_python.LanguageTool('en-US')
 def check_grammar(text):
+    """
+    Check grammar and language issues in the provided text.
+    
+    :param text: The text to check for grammar issues
+    :type text: str
+    :returns: List of grammar issues found by LanguageTool
+    :rtype: list
+    """
     return tool.check(text)
 
 # 9. Analyze audio for pitch, duration, and estimated words per minute
 #    - Used for additional feedback
 def analyze_audio(file_path):
+    """
+    Analyze audio file for pitch, duration, and estimated speaking rate.
+    
+    :param file_path: Path to the audio file to analyze
+    :type file_path: str
+    :returns: Dictionary containing duration, average pitch, and estimated words per minute
+    :rtype: dict
+    """
     snd = parselmouth.Sound(file_path)
     pitch = snd.to_pitch()
     duration = snd.duration
@@ -280,14 +351,38 @@ def analyze_audio(file_path):
 #     - Returns all results
 
 def evaluate_answer(transcript, audio_metrics, expected_keywords):
-    """Basic evaluation function that returns transcript and audio metrics."""
+    """
+    Basic evaluation function that returns transcript and audio metrics.
+    
+    :param transcript: The transcribed text from audio
+    :type transcript: str
+    :param audio_metrics: Dictionary containing audio analysis results
+    :type audio_metrics: dict
+    :param expected_keywords: List of keywords expected in the answer
+    :type expected_keywords: list
+    :returns: Dictionary containing transcript and audio metrics
+    :rtype: dict
+    """
     return {
         "transcript": transcript,
         "audio_metrics": audio_metrics,
     }
 
 def run_full_evaluation(question, keywords, audio_file, use_deepgram=True):
-    """Main evaluation function that processes audio and returns complete results."""
+    """
+    Main evaluation function that processes audio and returns complete results.
+    
+    :param question: The question that was asked to the student
+    :type question: str
+    :param keywords: Expected keywords for the answer evaluation
+    :type keywords: list
+    :param audio_file: Path to the audio file containing the student's answer
+    :type audio_file: str
+    :param use_deepgram: Whether to use Deepgram for transcription (default: True)
+    :type use_deepgram: bool
+    :returns: Complete evaluation results including transcript, metrics, and scores, or None if failed
+    :rtype: dict or None
+    """
     try:
         # Get transcription
         transcript_data = transcribe_audio_deepgram(audio_file)

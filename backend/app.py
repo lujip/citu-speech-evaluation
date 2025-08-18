@@ -46,6 +46,14 @@ current_index = 0
 
 # 4. Text-to-speech function to read questions aloud (runs in a thread)
 def speak(text):
+    """
+    Convert text to speech using pyttsx3 engine with female voice preference.
+    
+    :param text: The text to be spoken aloud
+    :type text: str
+    :returns: None
+    :rtype: None
+    """
     engine = pyttsx3.init()
     voices = engine.getProperty('voices')
     for voice in voices:
@@ -58,11 +66,26 @@ def speak(text):
 # 5. API endpoint: Get the current question
 @app.route("/question", methods=["GET"])
 def get_current_question():
+    """
+    GET endpoint to retrieve the current question.
+    
+    :returns: JSON response containing the current question text
+    :rtype: flask.Response
+    """
     return jsonify(current_question)
 
 # 6. API endpoint: Move to the next question (loops to start if at end)
 @app.route("/next_question", methods=["POST"])
 def next_question():
+    """
+    POST endpoint to advance to the next question in the sequence.
+    
+    Advances to the next question in the predefined list. If at the end of the list,
+    loops back to the first question. Also triggers text-to-speech for the new question.
+    
+    :returns: JSON response with success status and the new question
+    :rtype: flask.Response
+    """
     global current_index, current_question
     if current_index + 1 < len(questions):
         current_index += 1
@@ -83,6 +106,32 @@ def next_question():
 #    - Returns transcript, metrics, evaluation, and feedback
 @app.route("/evaluate", methods=["POST"])
 def evaluate():
+    """
+    POST endpoint to evaluate a student's audio answer.
+    
+    Receives a question, keywords, and audio file from the frontend, processes the audio
+    through transcription and evaluation pipeline, and returns comprehensive results.
+    
+    Expected form data:
+    - question: The question that was asked
+    - keywords: List of expected keywords for evaluation
+    - audio: Audio file containing the student's answer (webm/ogg format)
+    
+    :returns: JSON response containing transcript, audio metrics, evaluation scores, and feedback
+    :rtype: flask.Response
+    
+    Response format:
+    {
+        "transcript": str,
+        "audio_metrics": dict,
+        "evaluation": dict,
+        "comment": str
+    }
+    
+    Error responses:
+    - 400: Missing required fields (question, keywords, or audio)
+    - 500: Audio conversion failure or evaluation pipeline failure
+    """
     question = request.form.get("question")
     keywords = request.form.getlist("keywords")
     audio = request.files.get("audio")
