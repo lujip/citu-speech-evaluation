@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import './App.css';
 import axios from 'axios';
 import Header from './components/header/Header.jsx';
+import EmojiAvatar from './EmojiAvatar.jsx';
 
 const KEYWORDS = ["stress", "calm", "angry", "patience", "solution"];
 
@@ -11,6 +12,7 @@ const App = () => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [avatarTalking, setAvatarTalking] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -21,6 +23,7 @@ const App = () => {
   const dataArrayRef = useRef(null);
   const sourceRef = useRef(null);
   const streamRef = useRef(null);
+  const ttsAudioRef = useRef(null);
 
   // --- Fetch the first question on mount ---
   useEffect(() => {
@@ -28,12 +31,67 @@ const App = () => {
       try {
         const res = await axios.get("http://localhost:5000/question");
         setQuestion(res.data.text);
+        // Speak the question when loaded
+        setTimeout(() => speakWithAvatar(res.data.text), 1000);
       } catch (err) {
         setQuestion("Could not load question.");
+        setTimeout(() => speakWithAvatar("Could not load question."), 1000);
       }
     };
     fetchQuestion();
   }, []);
+
+  // --- TTS function with avatar mouth movement ---
+  const speakWithAvatar = (text) => {
+    if ('speechSynthesis' in window) {
+      // Stop any ongoing speech
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Wait for voices to load if needed
+      const speakUtterance = () => {
+        const voices = window.speechSynthesis.getVoices();
+        const femaleVoice = voices.find(voice => 
+          voice.name.toLowerCase().includes('female') || 
+          voice.name.toLowerCase().includes('zira') ||
+          voice.name.toLowerCase().includes('anna') ||
+          voice.name.toLowerCase().includes('karen') ||
+          voice.name.toLowerCase().includes('samantha')
+        );
+        if (femaleVoice) {
+          utterance.voice = femaleVoice;
+        }
+        
+        utterance.rate = 0.9; // Slightly slower for better understanding
+        utterance.pitch = 1.1; // Slightly higher pitch
+        
+        // Start avatar talking when speech starts
+        utterance.onstart = () => {
+          setAvatarTalking(true);
+        };
+        
+        // Stop avatar talking when speech ends
+        utterance.onend = () => {
+          setAvatarTalking(false);
+        };
+        
+        // Handle errors
+        utterance.onerror = () => {
+          setAvatarTalking(false);
+        };
+        
+        window.speechSynthesis.speak(utterance);
+      };
+      
+      // Check if voices are loaded
+      if (window.speechSynthesis.getVoices().length === 0) {
+        window.speechSynthesis.addEventListener('voiceschanged', speakUtterance, { once: true });
+      } else {
+        speakUtterance();
+      }
+    }
+  };
 
   // --- Draw waveform on canvas ---
   const drawWaveform = () => {
@@ -165,14 +223,18 @@ const App = () => {
                     Start Answering
                   </button>
                   <button
-                    style={{ marginLeft: '10px' }}
                     onClick={stopRecording}
                     disabled={loading || !recording}
                   >
                     Stop Answering
                   </button>
                   <button
-                    style={{ marginLeft: '10px' }}
+                    onClick={() => speakWithAvatar(question)}
+                    disabled={loading || recording || !question || avatarTalking}
+                  >
+                    Read Question
+                  </button>
+                  <button
                     onClick={async () => {
                       try {
                         const res = await axios.post("http://localhost:5000/next_question");
@@ -180,6 +242,8 @@ const App = () => {
                           setQuestion(res.data.question.text);
                           setResult(null);
                           setAudioUrl(null);
+                          // Speak the new question with avatar animation
+                          setTimeout(() => speakWithAvatar(res.data.question.text), 500);
                         } else {
                           alert(res.data.message || "No more questions.");
                         }
@@ -207,7 +271,7 @@ const App = () => {
             </section>
             {/* Right: Avatar */}
             <aside className="avatar-block">
-              <div className="avatar-placeholder">Avatar</div>
+              <EmojiAvatar isTalking={avatarTalking} />
             </aside>
           </div>
           {/* Results Section */}

@@ -65,6 +65,10 @@ body {
 
 .question-buttons {
   margin: 1.2rem 0 0.5rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 button {
@@ -76,9 +80,9 @@ button {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  margin-right: 0.5rem;
   transition: background 0.2s, box-shadow 0.2s;
   box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+  white-space: nowrap;
 }
 
 button:disabled {

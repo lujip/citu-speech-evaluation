@@ -380,47 +380,101 @@ def run_full_evaluation(question, keywords, audio_file, use_deepgram=True):
     :type audio_file: str
     :param use_deepgram: Whether to use Deepgram for transcription (default: True)
     :type use_deepgram: bool
-    :returns: Complete evaluation results including transcript, metrics, and scores, or None if failed
-    :rtype: dict or None
+    :returns: Complete evaluation results including transcript, metrics, and scores, or error dict if failed
+    :rtype: dict
     """
     try:
+        # Validate input parameters
+        if not question or not audio_file:
+            return {
+                "error": "INVALID_INPUT",
+                "message": "Question and audio file are required",
+                "status_code": 400
+            }
+        
+        # Check if audio file exists
+        if not os.path.exists(audio_file):
+            return {
+                "error": "FILE_NOT_FOUND",
+                "message": f"Audio file not found: {audio_file}",
+                "status_code": 404
+            }
+        
         # Get transcription
         transcript_data = transcribe_audio_deepgram(audio_file)
         if not transcript_data:
-            print("Transcription failed - no data returned")
-            return None
+            return {
+                "error": "TRANSCRIPTION_FAILED",
+                "message": "Audio transcription failed - no data returned from Deepgram",
+                "status_code": 502
+            }
         
         transcript = transcript_data.get("transcript")
-        if not transcript:
-            print("Transcription failed - no transcript in response")
-            return None
+        if not transcript or not transcript.strip():
+            return {
+                "error": "EMPTY_TRANSCRIPT",
+                "message": "Transcription failed - no speech detected in audio",
+                "status_code": 422
+            }
         
         # Get audio metrics
         audio_metrics = analyze_audio(audio_file)
         if not audio_metrics:
-            print("Audio analysis failed")
-            return None
+            return {
+                "error": "AUDIO_ANALYSIS_FAILED",
+                "message": "Audio analysis failed - unable to process audio file",
+                "status_code": 422
+            }
             
         # Get evaluation (using Gemini)
         evaluation_result = judge_answer_gemini(question, transcript, audio_metrics)
         
-        # No need to parse the result as judge_answer_gemini already returns a dict
+        # Check if evaluation was successful
+        if "error" in evaluation_result:
+            return {
+                "error": "EVALUATION_FAILED",
+                "message": f"AI evaluation failed: {evaluation_result.get('comment', 'Unknown error')}",
+                "status_code": 502
+            }
         
         # Cleanup
         gc.collect()
             
         # Structure the response to match frontend expectations
         return {
+            "success": True,
             "transcript": transcript,
             "transcript_data": transcript_data,
             "audio_metrics": audio_metrics,
             "evaluation": {
-                "score": evaluation_result["score"],
-                "category_scores": evaluation_result["category_scores"],
+                "score": evaluation_result.get("score", 0),
+                "category_scores": evaluation_result.get("category_scores", {}),
             },
-            "comment": evaluation_result["comment"]  # Move comment to top level for frontend
+            "comment": evaluation_result.get("comment", "No feedback available.")
         }
             
+    except FileNotFoundError as e:
+        return {
+            "error": "FILE_NOT_FOUND",
+            "message": f"Required file not found: {str(e)}",
+            "status_code": 404
+        }
+    except PermissionError as e:
+        return {
+            "error": "PERMISSION_DENIED",
+            "message": f"Permission denied accessing file: {str(e)}",
+            "status_code": 403
+        }
+    except ValueError as e:
+        return {
+            "error": "INVALID_INPUT",
+            "message": f"Invalid input provided: {str(e)}",
+            "status_code": 400
+        }
     except Exception as e:
-        print(f"Error in run_full_evaluation: {str(e)}")
-        return None
+        print(f"Unexpected error in run_full_evaluation: {str(e)}")
+        return {
+            "error": "INTERNAL_ERROR",
+            "message": f"An unexpected error occurred: {str(e)}",
+            "status_code": 500
+        }
