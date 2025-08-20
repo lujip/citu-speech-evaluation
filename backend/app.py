@@ -3,7 +3,7 @@
 # This file handles the API endpoints, question management, audio file handling,
 # and orchestration of the evaluation process. See comments throughout for a walkthrough.
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request
 import threading
 from flask_cors import CORS
 from test_eval import run_full_evaluation
@@ -11,9 +11,6 @@ import json
 import pyttsx3
 import os
 import subprocess
-import openai
-from io import BytesIO
-import tempfile
 
 # 1. Initialize Flask app and enable CORS for frontend-backend communication
 app = Flask(__name__)
@@ -234,87 +231,6 @@ def evaluate():
         "evaluation": evaluation,
         "comment": comment
     }), 200
-
-@app.route('/tts', methods=['POST'])
-def text_to_speech():
-    """
-    Text-to-Speech endpoint using OpenAI TTS API
-    
-    Accepts:
-        JSON body with:
-        - text (str): Text to convert to speech
-        - voice (str, optional): Voice to use (alloy, echo, fable, onyx, nova, shimmer)
-    
-    Returns:
-        Audio file (MP3) as binary response
-    """
-    try:
-        data = request.get_json()
-        
-        if not data or 'text' not in data:
-            return jsonify({
-                "success": False,
-                "error": "MISSING_TEXT",
-                "message": "Text field is required"
-            }), 400
-        
-        text = data['text']
-        voice = data.get('voice', 'nova')  # Default to nova voice
-        
-        # Validate voice option
-        valid_voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
-        if voice not in valid_voices:
-            voice = 'nova'
-        
-        # Call OpenAI TTS API
-        try:
-            from openai import OpenAI
-            client = OpenAI()  # Uses OPENAI_API_KEY from environment
-            
-            response = client.audio.speech.create(
-                model="tts-1",
-                voice=voice,
-                input=text,
-                response_format="mp3"
-            )
-            
-            # Create a BytesIO object to store the audio data
-            audio_buffer = BytesIO()
-            
-            # Stream the audio content to the buffer
-            for chunk in response.iter_bytes():
-                audio_buffer.write(chunk)
-            
-            # Reset buffer position to beginning
-            audio_buffer.seek(0)
-            
-            return send_file(
-                audio_buffer,
-                mimetype='audio/mpeg',
-                as_attachment=False,
-                download_name='speech.mp3'
-            )
-            
-        except ImportError:
-            return jsonify({
-                "success": False,
-                "error": "OPENAI_NOT_INSTALLED",
-                "message": "OpenAI library not installed. Please install with: pip install openai"
-            }), 500
-            
-        except Exception as openai_error:
-            return jsonify({
-                "success": False,
-                "error": "OPENAI_TTS_ERROR",
-                "message": f"OpenAI TTS failed: {str(openai_error)}"
-            }), 500
-    
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": "TTS_ERROR",
-            "message": f"Text-to-speech error: {str(e)}"
-        }), 500
 
 # 8. Error handlers
 @app.errorhandler(404)
